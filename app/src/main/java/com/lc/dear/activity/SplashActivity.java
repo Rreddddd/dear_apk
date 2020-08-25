@@ -2,7 +2,8 @@ package com.lc.dear.activity;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.ImageView;
+import android.view.View;
+import android.widget.LinearLayout;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -11,22 +12,51 @@ import com.lc.dear.R;
 import com.lc.dear.utils.HttpUtil;
 
 import java.io.InputStream;
+import java.util.Calendar;
 
 public class SplashActivity extends AppCompatActivity {
 
-    private ImageView iv_bg;
+    private LinearLayout ll_container;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_splash);
+        ll_container = (LinearLayout) View.inflate(this,R.layout.activity_splash,null);
+        setContentView(ll_container);
 
-        initView();
+        showBg();
         checkUpdate();
     }
 
-    private void initView(){
-        iv_bg=findViewById(R.id.iv_bg);
+    private void showBg(){
+        switch (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)){
+            case 14:
+            case 15:
+            case 16:
+                ll_container.setBackgroundResource(R.drawable.splash_afternoon);
+            case 17:
+            case 18:
+            case 19:
+                ll_container.setBackgroundResource(R.drawable.splash_dusk);
+                break;
+            case 20:
+            case 21:
+            case 22:
+            case 23:
+                ll_container.setBackgroundResource(R.drawable.splash_night);
+                break;
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+                ll_container.setBackgroundResource(R.drawable.splash_midnight);
+                break;
+            default:
+                ll_container.setBackgroundResource(R.drawable.splash_daytime);
+        }
     }
 
     private void checkUpdate(){
