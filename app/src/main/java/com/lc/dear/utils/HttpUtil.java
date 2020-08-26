@@ -105,11 +105,18 @@ public abstract class HttpUtil {
         int threadCount=param.threadCount<0?1:param.threadCount;
         int avg=fileLength/threadCount;
         HttpParam taskParam;
+        int[] current=getCurrentProgress(threadCount,param.downloadPath);
+        boolean initState=true;
+        for(int record : current){
+            if(record>0){
+                initState=false;
+                break;
+            }
+        }
         File downloadFile=new File(param.downloadPath);
-        if(downloadFile.exists()){
+        if(initState && downloadFile.exists()){
             downloadFile.delete();
         }
-        int[] current=getCurrentProgress(threadCount,param.downloadPath);
         for(int i=1;i<=threadCount;i++){
             final int taskNumber=i-1;
             final int start,end;
