@@ -5,24 +5,29 @@ import android.os.Message;
 
 import androidx.annotation.NonNull;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
-public interface HttpUtil {
+public abstract class HttpUtil {
 
-    static void get(HttpParam param){
+    public static void get(HttpParam param){
         doHttp("GET",param);
     }
 
-    static void post(HttpParam param){
+    public static void post(HttpParam param){
         doHttp("POST",param);
     }
 
-    static void doHttp(String method, HttpParam param){
+    public static void doHttp(String method, HttpParam param){
         new Thread(){
             @Override
             public void run() {
@@ -34,7 +39,7 @@ public interface HttpUtil {
                     for(Map.Entry<String,String> entry : param.header.entrySet()){
                         connection.setRequestProperty(entry.getKey(),entry.getValue());
                     }
-                    if(connection.getResponseCode()==200){
+                    if(connection.getResponseCode()==(param.downloadTask?206:200)){
                         Message message = Message.obtain();
                         message.what= HttpParam.LISTEN_SUCCESS;
                         if(param.download){
@@ -54,45 +59,181 @@ public interface HttpUtil {
         }.start();
     }
 
-    static void download(HttpParam param,int fileLength){
+    private static File[] getProgressFiles(String downloadPath){
+        File cacheDir = new File("/data/data/com.lc.dear/cache");
+        int hashCode = downloadPath.hashCode();
+        return cacheDir.listFiles(new FilenameFilter() {
+
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.contains(hashCode+"");
+            }
+        });
+    }
+
+    private static int[] getCurrentProgress(int threadCount,String downloadPath){
+        int[] result=new int[threadCount];
+        File[] files = getProgressFiles(downloadPath);
+        if(files!=null && files.length==threadCount){
+            for(int i=0;i<threadCount;i++){
+                BufferedReader br=null;
+                try {
+                    br=new BufferedReader(new FileReader(files[i]));
+                    StringBuilder sb=new StringBuilder();
+                    String temp;
+                    while ((temp=br.readLine())!=null){
+                        sb.append(temp);
+                    }
+                    result[i]+=Integer.parseInt(sb.toString());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    if(br!=null){
+                        try {
+                            br.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static void download(HttpParam param,int fileLength){
         int threadCount=param.threadCount<0?1:param.threadCount;
         int avg=fileLength/threadCount;
         HttpParam taskParam;
-        int start,end;
+        File downloadFile=new File(param.downloadPath);
+        if(downloadFile.exists()){
+            downloadFile.delete();
+        }
+        int[] current=getCurrentProgress(threadCount,param.downloadPath);
         for(int i=1;i<=threadCount;i++){
-            start=(i-1)*avg;
-            end=i*avg-1;
+            final int taskNumber=i-1;
+            final int start,end;
+            start=(i-1)*avg+current[taskNumber];
+            if(i==threadCount){
+                end=fileLength;
+            }else{
+                end=i*avg-1;
+            }
+            if(start>=end){
+                continue;
+            }
             taskParam=new HttpParam();
             taskParam.url=param.url;
             taskParam.addRequestProperty("Range","bytes="+start+"-"+end);
             taskParam.inner=true;
-            taskParam.setHttpListener(new SimpleHttpListener() {
+            taskParam.download=false;
+            taskParam.downloadTask=true;
+            taskParam.setHttpListener(new HttpListener() {
                 @Override
                 public void onSuccess(InputStream inputStream) {
                     if(inputStream!=null){
+                        RandomAccessFile outputStream=null;
+                        RandomAccessFile randomAccessFile=null;
                         try {
-
+                            randomAccessFile = new RandomAccessFile(downloadFile, "rw");
+                            randomAccessFile.seek(start);
+                            byte[] buffer=new byte[1024*128];
+                            int len,count;
+                            Message message;
+                            Map<String,Integer> property;
+                            while((len=inputStream.read(buffer,0,buffer.length))!=-1){
+                                current[taskNumber]+=len;
+                                outputStream=new RandomAccessFile("/data/data/com.lc.dear/cache/doanload_progress_" + param.downloadPath.hashCode()+"_"+taskNumber+".json","rwd");
+                                outputStream.write((current[taskNumber]+"").getBytes());
+                                outputStream.close();
+                                outputStream=null;
+                                randomAccessFile.write(buffer,0,len);
+                                message = Message.obtain();
+                                message.what=HttpParam.LISTEN_PROGRESS;
+                                property=new HashMap<String,Integer>();
+                                count=0;
+                                for(int selfCount : current){
+                                    count+=selfCount;
+                                }
+                                property.put("current",count);
+                                property.put("fileLength",fileLength);
+                                message.obj=property;
+                                param.sendMessage(message);
+                            }
+                            synchronized (param){
+                                count=0;
+                                for(int selfCount : current){
+                                    count+=selfCount;
+                                }
+                                if(count==fileLength){
+                                    File[] progressFiles = getProgressFiles(param.downloadPath);
+                                    if(progressFiles!=null && progressFiles.length>0){
+                                        for(File progressFile : progressFiles){
+                                            progressFile.delete();
+                                        }
+                                    }
+                                    param.sendEmptyMessage(HttpParam.LISTEN_FINISH);
+                                }
+                            }
                         } catch (Exception e){
                             e.printStackTrace();
                         } finally {
                             try {
                                 inputStream.close();
+                                inputStream=null;
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
+                            if(outputStream!=null){
+                                try {
+                                    outputStream.close();
+                                    outputStream=null;
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            if(randomAccessFile!=null){
+                                try {
+                                    randomAccessFile.close();
+                                    randomAccessFile=null;
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            }
                         }
                     }
+                }
+
+                @Override
+                public void onFailure() {
+                    param.sendEmptyMessage(HttpParam.LISTEN_FAILURE);
+                }
+
+                @Override
+                public void onError() {
+                    param.sendEmptyMessage(HttpParam.LISTEN_ERROR);
+                }
+
+                @Override
+                public void onProgress(int current, int fileLength) {
+
+                }
+
+                @Override
+                public void onFinish() {
+
                 }
             });
             get(taskParam);
         }
     }
 
-    class HttpParam{
+    public static class HttpParam{
         private static final int LISTEN_SUCCESS=1;
         private static final int LISTEN_FAILURE=2;
         private static final int LISTEN_ERROR=3;
         private static final int LISTEN_PROGRESS=4;
+        private static final int LISTEN_FINISH=5;
 
         public String url;
         public int readTimeout=3000;
@@ -102,8 +243,9 @@ public interface HttpUtil {
         private HttpListener httpListener;
         private Handler handler;
 
+        public String downloadPath;
         public boolean download=false;
-        public boolean downloadTask=false;
+        private boolean downloadTask=false;
         public int threadCount=3;
 
         public HttpParam(){}
@@ -146,7 +288,19 @@ public interface HttpUtil {
                     break;
                 case LISTEN_PROGRESS:
                     if(httpListener!=null){
-                        httpListener.onProgress();
+                        Map<String, Integer> property = (HashMap<String, Integer>) obj;
+                        if(property!=null){
+                            Integer current = property.get("current");
+                            Integer fileLength = property.get("fileLength");
+                            if(current!=null && fileLength!=null){
+                                httpListener.onProgress(current,fileLength);
+                            }
+                        }
+                    }
+                    break;
+                case LISTEN_FINISH:
+                    if(httpListener!=null){
+                        httpListener.onFinish();
                     }
                     break;
             }
@@ -181,27 +335,11 @@ public interface HttpUtil {
         }
     }
 
-    interface HttpListener {
+    public interface HttpListener {
         void onSuccess(InputStream inputStream);
         void onFailure();
         void onError();
-        void onProgress();
-    }
-
-    abstract class SimpleHttpListener implements HttpListener{
-        @Override
-        public void onFailure() {
-
-        }
-
-        @Override
-        public void onError() {
-
-        }
-
-        @Override
-        public void onProgress() {
-
-        }
+        void onProgress(int current,int fileLength);
+        void onFinish();
     }
 }
