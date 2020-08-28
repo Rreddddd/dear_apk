@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">阿斯蒂芬</string>
+    <string name="activity_update_title">有新发现</string>
+    <string name="activity_update_confirm">获取</string>
+    <string name="activity_update_progress">等待%s秒结束</string>
+    <string name="cancel">取消</string>
+    <string name="percentSuffix">%s%%</string>
 </resources>

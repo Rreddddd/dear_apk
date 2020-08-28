@@ -1,8 +1,10 @@
 package com.lc.dear.activity;
 
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.util.Log;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.LinearLayout;
 
@@ -10,14 +12,15 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.lc.dear.R;
+import com.lc.dear.utils.AppConstant;
 import com.lc.dear.utils.HttpUtil;
-import com.lc.dear.utils.PathUtil;
 
-import java.io.File;
-import java.io.InputStream;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.Calendar;
 
-public class SplashActivity extends AppCompatActivity {
+    public class SplashActivity extends AppCompatActivity {
 
     private LinearLayout ll_container;
 
@@ -62,44 +65,69 @@ public class SplashActivity extends AppCompatActivity {
         }
     }
 
+    private void enterHome(){
+        startActivity(new Intent(this,HomeActivity.class));
+        finish();
+    }
+
     private void checkUpdate(){
-        String downloadPath = PathUtil.getDownloadPath(this,"WeChatSetup.exe");
-        if(downloadPath!=null){
-            HttpUtil.HttpParam httpParam = HttpUtil.HttpParam.create("http://10.0.2.2:8080/public/WeChatSetup.exe", new HttpUtil.HttpListener() {
-                @Override
-                public void onSuccess(InputStream inputStream) {
-                    Log.i("SplashActivity", "连接成功");
-                }
+        HttpUtil.get(HttpUtil.HttpParam.create("http://10.0.2.2:8080/public/dear_version.json",new HttpUtil.StringHttpListener(){
 
-                @Override
-                public void onFailure() {
-                    Log.i("SplashActivity", "连接失败");
+            @Override
+            public void onFinish(String result) {
+                if(TextUtils.isEmpty(result)){
+                    enterHome();
+                }else{
+                    try {
+                        JSONObject jsonObject = new JSONObject(result);
+                        PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+                        String versionName = packageInfo.versionName;
+                        long versionCode;
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            versionCode = packageInfo.getLongVersionCode();
+                        }else{
+                            versionCode = packageInfo.versionCode;
+                        }
+                        if(jsonObject.getLong("versionCode")!=versionCode || !jsonObject.getString("versionName").equals(versionName)){
+                            Intent intent=new Intent(getApplicationContext(),UpdateActivity.class);
+                            intent.putExtra("versionCode",versionCode);
+                            intent.putExtra("versionName",versionName);
+                            intent.putExtra("versionDes",jsonObject.getString("versionDes"));
+                            intent.putExtra("downloadUrl",jsonObject.getString("downloadUrl"));
+                            intent.putExtra("enterActivity",HomeActivity.class);
+                            startActivityForResult(intent, AppConstant.ACTIVITY_RESULT_UPDATE);
+                        }else{
+                            try {
+                                Thread.sleep(2000);
+                                enterHome();
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    } catch (JSONException | PackageManager.NameNotFoundException e) {
+                        e.printStackTrace();
+                        enterHome();
+                    }
                 }
+            }
 
-                @Override
-                public void onError() {
-                    Log.i("SplashActivity", "连接错误");
-                }
+            @Override
+            public void onFailure() {
+                enterHome();
+            }
 
-                @Override
-                public void onProgress(int current,int fileLength) {
-                    Log.i("SplashActivity", "下载中;current:"+current+",fileLength:"+fileLength);
-                }
-
-                @Override
-                public void onFinish() {
-                    Log.i("SplashActivity", "下载结束");
-                }
-            });
-            httpParam.download=true;
-            httpParam.downloadPath= downloadPath;
-            HttpUtil.get(httpParam);
-        }
+            @Override
+            public void onError() {
+                enterHome();
+            }
+        }));
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        System.out.println("");
+        if(requestCode==AppConstant.ACTIVITY_RESULT_UPDATE){
+            enterHome();
+        }
         super.onActivityResult(requestCode, resultCode, data);
     }
 }

@@ -11,6 +11,7 @@ import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -27,7 +28,7 @@ public abstract class HttpUtil {
         doHttp("POST",param);
     }
 
-    public static void doHttp(String method, HttpParam param){
+    private static void doHttp(String method, HttpParam param){
         new Thread(){
             @Override
             public void run() {
@@ -40,14 +41,13 @@ public abstract class HttpUtil {
                         connection.setRequestProperty(entry.getKey(),entry.getValue());
                     }
                     if(connection.getResponseCode()==(param.downloadTask?206:200)){
-                        Message message = Message.obtain();
-                        message.what= HttpParam.LISTEN_SUCCESS;
+                        InputStream inputStream=null;
                         if(param.download){
                             download(param,connection.getContentLength());
                         }else{
-                            message.obj=connection.getInputStream();
+                            inputStream=connection.getInputStream();
                         }
-                        param.sendMessage(message);
+                        param.exec(HttpParam.LISTEN_SUCCESS,inputStream);
                     }else{
                         param.sendEmptyMessage(HttpParam.LISTEN_FAILURE);
                     }
@@ -142,19 +142,19 @@ public abstract class HttpUtil {
                         RandomAccessFile outputStream=null;
                         RandomAccessFile randomAccessFile=null;
                         try {
-                            randomAccessFile = new RandomAccessFile(downloadFile, "rw");
+                            randomAccessFile = new RandomAccessFile(downloadFile, "rwd");
                             randomAccessFile.seek(start);
-                            byte[] buffer=new byte[1024*128];
+                            byte[] buffer=new byte[1024];
                             int len,count;
                             Message message;
                             Map<String,Integer> property;
                             while((len=inputStream.read(buffer,0,buffer.length))!=-1){
+                                randomAccessFile.write(buffer,0,len);
                                 current[taskNumber]+=len;
                                 outputStream=new RandomAccessFile("/data/data/com.lc.dear/cache/doanload_progress_" + param.downloadPath.hashCode()+"_"+taskNumber+".json","rwd");
                                 outputStream.write((current[taskNumber]+"").getBytes());
                                 outputStream.close();
                                 outputStream=null;
-                                randomAccessFile.write(buffer,0,len);
                                 message = Message.obtain();
                                 message.what=HttpParam.LISTEN_PROGRESS;
                                 property=new HashMap<String,Integer>();
@@ -348,5 +348,52 @@ public abstract class HttpUtil {
         void onError();
         void onProgress(int current,int fileLength);
         void onFinish();
+    }
+
+    public static abstract class StringHttpListener implements HttpListener{
+        @Override
+        public void onSuccess(InputStream inputStream) {
+            if(inputStream!=null){
+                BufferedReader br=null;
+                try {
+                    br=new BufferedReader(new InputStreamReader(inputStream));
+                    StringBuilder sb=new StringBuilder();
+                    String temp;
+                    while((temp=br.readLine())!=null){
+                        sb.append(temp);
+                    }
+
+                    onFinish(sb.toString());
+                } catch (Exception e){
+                    e.printStackTrace();
+                    onError();
+                } finally {
+                    try {
+                        inputStream.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    if(br!=null){
+                        try {
+                            br.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onProgress(int current, int fileLength) {
+
+        }
+
+        @Override
+        public void onFinish() {
+
+        }
+
+        public abstract void onFinish(String result);
     }
 }

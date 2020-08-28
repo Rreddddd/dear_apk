@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:paddingHorizontal="50dp"
+    android:paddingVertical="150dp">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginBottom="25dp"
+        android:background="#fbf8ef"/>
+
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingVertical="20dp"
+        android:textColor="#40145f"
+        android:textSize="18sp"
+        android:text="@string/activity_update_title"/>
+
+    <TextView
+        android:id="@+id/tv_des"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/tv_title"
+        android:paddingHorizontal="10dp"/>
+
+    <ImageView
+        android:id="@+id/iv_shadow"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:src="@drawable/shape_update_btn_confirm_shadow"
+        android:layout_marginBottom="90dp" />
+
+    <Button
+        android:id="@+id/btn_confirm"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:layout_marginBottom="100dp"
+        android:background="@drawable/selector_update_btn_confirm"
+        android:textColor="#ffffff"
+        android:textSize="20sp"
+        android:text="@string/activity_update_confirm"/>
+
+    <TextView
+        android:id="@+id/tv_progress_out"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginBottom="100dp"
+        android:layout_marginHorizontal="20dp"
+        android:background="@drawable/shape_update_progress_out_bg"
+        android:gravity="center"
+        android:textColor="#ffffff"
+        android:visibility="invisible"
+        android:textSize="18sp"/>
+
+    <TextView
+        android:id="@+id/tv_progress_in"
+        android:layout_width="0dp"
+        android:layout_height="30dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="@id/tv_progress_out"
+        android:layout_marginLeft="10dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginBottom="110dp"
+        android:visibility="invisible"
+        android:background="@drawable/shape_update_progress_in_bg"/>
+
+    <TextView
+        android:id="@+id/tv_progress_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/tv_progress_out"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:textColor="#795795"
+        android:visibility="invisible"
+        android:textSize="16sp"/>
+
+    <Button
+        android:id="@+id/btn_cancel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:background="@drawable/selector_update_btn_cancel"
+        android:paddingHorizontal="50dp"
+        android:textColor="#ffffff"
+        android:textSize="16sp"
+        android:visibility="invisible"
+        android:text="@string/cancel"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

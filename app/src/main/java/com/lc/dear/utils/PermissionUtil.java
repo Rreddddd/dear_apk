@@ -15,7 +15,8 @@ public abstract class PermissionUtil {
             if(PackageManager.PERMISSION_GRANTED==ContextCompat.checkSelfPermission(activity,permission)){
                 return true;
             }
-            ActivityCompat.requestPermissions(activity,new String[]{permission},getRefCode(permission));
+            activity.requestPermissions(new String[]{permission},getRefCode(permission));
+//            ActivityCompat.requestPermissions(activity,new String[]{permission},getRefCode(permission));
             return false;
         }else{
             return true;
