@@ -148,7 +148,7 @@ public abstract class HttpUtil {
                             int len,count;
                             Message message;
                             Map<String,Integer> property;
-                            while((len=inputStream.read(buffer,0,buffer.length))!=-1){
+                            while(!param.stopState && (len=inputStream.read(buffer,0,buffer.length))!=-1){
                                 randomAccessFile.write(buffer,0,len);
                                 current[taskNumber]+=len;
                                 outputStream=new RandomAccessFile("/data/data/com.lc.dear/cache/doanload_progress_" + param.downloadPath.hashCode()+"_"+taskNumber+".json","rwd");
@@ -253,6 +253,7 @@ public abstract class HttpUtil {
         public String downloadPath;
         public boolean download=false;
         private boolean downloadTask=false;
+        private boolean stopState=false;
         public int threadCount=3;
 
         public HttpParam(){}
@@ -327,6 +328,10 @@ public abstract class HttpUtil {
             }else if(handler!=null){
                 handler.sendEmptyMessage(status);
             }
+        }
+
+        public void stop(){
+            this.stopState=true;
         }
 
         public void addRequestProperty(String key,String value){

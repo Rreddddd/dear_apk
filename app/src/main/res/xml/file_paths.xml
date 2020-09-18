@@ -3,6 +3,6 @@
 
     <external-files-path
         name="download"
-        path=""/>
+        path="/download"/>
 
 </paths>

@@ -4,9 +4,11 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.animation.AlphaAnimation;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -14,6 +16,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 
@@ -38,9 +41,15 @@ public class UpdateActivity extends AppCompatActivity {
     private long beforeTime;
     private int beforeProgress;
 
+    private String downloadPath;
+    private HttpUtil.HttpParam httpParam;
+    private static final int APK_INSTALL_CODE=100;
+    private static final int REQUEST_UNKNOWN_APP=101;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.activity_update);
 
         initView();
@@ -57,19 +66,14 @@ public class UpdateActivity extends AppCompatActivity {
         TextView tv_des=findViewById(R.id.tv_des);
         tv_des.setText(intent.getStringExtra("versionDes"));
         btn_confirm=findViewById(R.id.btn_confirm);
-        btn_confirm.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startDownload();
-            }
-        });
+        btn_confirm.setOnClickListener(v -> startDownload());
         btn_cancel=findViewById(R.id.btn_cancel);
-        btn_cancel.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                setResult(AppConstant.ACTIVITY_RESULT_UPDATE);
-                finish();
+        btn_cancel.setOnClickListener(v -> {
+            if(httpParam!=null){
+                httpParam.stop();
             }
+            setResult(AppConstant.ACTIVITY_RESULT_UPDATE);
+            finish();
         });
         tv_progress_out=findViewById(R.id.tv_progress_out);
         tv_progress_in=findViewById(R.id.tv_progress_in);
@@ -94,7 +98,7 @@ public class UpdateActivity extends AppCompatActivity {
             String downloadPath = PathUtil.getDownloadPath(UpdateActivity.this,PathUtil.getFileName(downloadUrl));
             if(downloadPath!=null){
                 final int[] cache={-1,-1};
-                HttpUtil.HttpParam httpParam = HttpUtil.HttpParam.create(downloadUrl, new HttpUtil.HttpListener() {
+                httpParam = HttpUtil.HttpParam.create(downloadUrl, new HttpUtil.HttpListener() {
                     @Override
                     public void onSuccess(InputStream inputStream) {
                         Log.i("SplashActivity", "连接成功");
@@ -148,17 +152,7 @@ public class UpdateActivity extends AppCompatActivity {
                     @Override
                     public void onFinish() {
                         tv_progress_text.setVisibility(View.INVISIBLE);
-                        File apk=new File(downloadPath);
-                        Intent intent = new Intent();
-                        intent.setAction(Intent.ACTION_INSTALL_PACKAGE);
-                        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.N){
-                            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            Uri uri = FileProvider.getUriForFile(getApplicationContext(), "com.lc.dear", apk);
-                            intent.setDataAndType(uri, "application/vnd.android.package-archive");
-                        }else{
-                            intent.setDataAndType(Uri.fromFile(apk),"application/vnd.android.package-archive");
-                        }
-                        startActivity(intent);
+                        installNewApk(downloadPath);
                     }
                 });
                 httpParam.download=true;
@@ -168,6 +162,55 @@ public class UpdateActivity extends AppCompatActivity {
                 mClick=false;
             }
         }
+    }
+
+    private void installNewApk(String apkPath){
+        downloadPath=apkPath;
+        File apk=new File(downloadPath);
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_INSTALL_PACKAGE);
+        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.N){
+            if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O){
+                if(!getPackageManager().canRequestPackageInstalls()){
+                    AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                    builder.setTitle("提示");
+                    builder.setMessage("需要打开允许安装");
+                    builder.setPositiveButton("确定", (dialog, which) -> {
+                        startActivityForResult(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())),REQUEST_UNKNOWN_APP);
+                        dialog.dismiss();
+                    });
+                    builder.setNegativeButton("取消", (dialog, which) -> {
+                        finish();
+                    });
+                    builder.show();
+                    return;
+                }
+            }
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Uri uri = FileProvider.getUriForFile(getApplicationContext(), "com.lc.dear", apk);
+            intent.setDataAndType(uri, "application/vnd.android.package-archive");
+        }else{
+            intent.setDataAndType(Uri.fromFile(apk),"application/vnd.android.package-archive");
+        }
+        startActivityForResult(intent,APK_INSTALL_CODE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        if(requestCode==REQUEST_UNKNOWN_APP){
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if(getPackageManager().canRequestPackageInstalls()){
+                    installNewApk(downloadPath);
+                }else{
+                    finish();
+                }
+            }else{
+                finish();
+            }
+        }else if(requestCode==APK_INSTALL_CODE){
+            finish();
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -180,5 +223,21 @@ public class UpdateActivity extends AppCompatActivity {
             }
         }
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if(httpParam!=null){
+            httpParam.stop();
+        }
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if(httpParam!=null){
+            httpParam.stop();
+        }
+        super.onDestroy();
     }
 }
